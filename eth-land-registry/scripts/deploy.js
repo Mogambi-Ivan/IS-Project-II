@@ -1,27 +1,29 @@
-import fs from "fs";
-import { ethers } from "ethers";
+const { ethers } = require("ethers");
+const fs = require("fs");
 
 async function main() {
   console.log("🚀 Deploying LandRegistry...");
 
-  // ✅ Load ABI and BIN from artifacts
-  const abi = JSON.parse(
-    fs.readFileSync("./artifacts/contracts_LandRegistry_sol_LandRegistry.abi", "utf8")
-  );
-  const bytecode = fs.readFileSync(
-    "./artifacts/contracts_LandRegistry_sol_LandRegistry.bin", "utf8"
-  );
+  // Load ABI + Bytecode
+ const abi = JSON.parse(fs.readFileSync("./artifacts/LandRegistry.abi", "utf8"));
+ const bytecode = fs.readFileSync("./artifacts/LandRegistry.bin", "utf8");
 
-  // ✅ Connect to Hardhat local network
-  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-  const signer = await provider.getSigner();
 
-  // ✅ Deploy contract
+  // Connect to local Hardhat node
+  const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
+  const signer = provider.getSigner(0);
+
+  // Deploy contract
   const factory = new ethers.ContractFactory(abi, bytecode, signer);
   const contract = await factory.deploy();
-  await contract.waitForDeployment();
 
-  console.log("✅ Deployed at:", await contract.getAddress());
+  console.log("✅ Transaction hash:", contract.deployTransaction.hash);
+  await contract.deployTransaction.wait();
+
+  console.log("✅ Deployed at:", contract.address);
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});
