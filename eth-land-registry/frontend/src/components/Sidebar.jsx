@@ -1,37 +1,40 @@
-import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useUser } from "../context/UserContext";
 
-export default function Sidebar({ currentPage, setPage }) {
-  const [isOpen, setIsOpen] = useState(true);
+export default function Sidebar() {
+  const { role, logout } = useUser();
+
   return (
-    <aside
-      className={`bg-gray-900 text-gray-100 h-screen ${
-        isOpen ? "w-64" : "w-20"
-      } transition-all duration-300 flex flex-col`}
-    >
-      <button
-        className="p-3 text-gray-400 hover:text-white"
-        onClick={() => setIsOpen(!isOpen)}
+    <div className="bg-white w-64 h-screen shadow-md px-5 py-4 flex flex-col">
+      <h2 className="text-xl font-semibold text-green-700 mb-6">Land Registry</h2>
+
+      <nav className="flex-1 space-y-2">
+        <Link to="/" className="block p-2 rounded hover:bg-gray-200">Dashboard</Link>
+        {/* Admin ONLY */}
+        {role === "admin" && (
+          <>
+            <Link to="/register-property" className="block p-2 rounded hover:bg-gray-200">
+              Register Property
+            </Link>
+            <Link to="/reports" className="block p-2 rounded hover:bg-gray-200">
+              Reports
+            </Link>
+          </>
+        )}
+        {/* Land Owner ONLY */}
+        {role === "owner" && (
+          <Link to="/view-lands" className="block p-2 rounded hover:bg-gray-200">
+            My Lands
+          </Link>
+        )}
+      </nav>
+
+      <button 
+        onClick={logout}
+        className="bg-red-500 hover:bg-red-600 text-white py-2 rounded mt-4"
       >
-        ☰
+        Logout
       </button>
-      <ul className="mt-4">
-        <li
-          onClick={() => setPage("dashboard")}
-          className={`p-3 cursor-pointer ${
-            currentPage === "dashboard" ? "bg-gray-700" : ""
-          } hover:bg-gray-700`}
-        >
-          Dashboard
-        </li>
-        <li
-          onClick={() => setPage("register")}
-          className={`p-3 cursor-pointer ${
-            currentPage === "register" ? "bg-gray-700" : ""
-          } hover:bg-gray-700`}
-        >
-          Register Property
-        </li>
-      </ul>
-    </aside>
+    </div>
   );
 }
