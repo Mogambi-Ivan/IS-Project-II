@@ -1,10 +1,10 @@
 import fs from "fs";
 import { ethers } from "ethers";
 
-// ✅ Path to the ABI JSON file (matches your artifacts folder)
-const abi = JSON.parse(fs.readFileSync("./artifacts/LandRegistry.abi", "utf8"));
-const bytecode = fs.readFileSync("./artifacts/LandRegistry.bin", "utf8");
-
+// ✅ Path to the LandRegistry.json file (matches your artifacts folder)
+const contractJson = JSON.parse(fs.readFileSync("./artifacts/contracts/LandRegistry.sol/LandRegistry.json", "utf8"));
+const abi = contractJson.abi;
+const bytecode = contractJson.bytecode;
 
 // ✅ Connect to local Hardhat network
 const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
