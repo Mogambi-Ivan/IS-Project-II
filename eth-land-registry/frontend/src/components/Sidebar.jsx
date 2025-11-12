@@ -9,7 +9,7 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="bg-[#0C4B33] text-white h-screen w-64 p-4 border-r border-green-900 shadow-md">
+  <aside className="bg-[#004225] text-white w-64 min-h-screen p-4">
       {/* Logo */}
       <div className="text-center mb-6">
         <img
@@ -28,7 +28,7 @@ export default function Sidebar() {
           <Link
             key={item.path}
             to={item.path}
-            className="flex items-center gap-3 p-3 rounded-lg hover:bg-green-700 transition font-medium"
+            className="block py-2 px-3 rounded hover:bg-green-700"
           >
             <span>{item.icon}</span> {item.label}
           </Link>

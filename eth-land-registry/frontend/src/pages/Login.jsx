@@ -1,51 +1,58 @@
 import { useState } from "react";
-import { useUser } from "../context/UserContext.jsx";
+import { useUser } from "../context/UserContext";
 
 export default function Login() {
   const { login } = useUser();
-  const [name, setName] = useState("");
+
+  const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
 
-  function handleLogin(e) {
-    e.preventDefault();
-    if (!name.trim() || !role) {
-      alert("Please enter a name and select a role.");
-      return;
-    }
+  const handleLogin = () => {
+    if (!email || !role) return alert("Enter email & select role");
 
-    login(name, role);
-  }
+    login(role);
+  };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-      <form className="bg-white p-6 rounded shadow-lg w-80" onSubmit={handleLogin}>
-        <h2 className="text-xl font-bold mb-4 text-center">Land Registry Login</h2>
+    <div className="min-h-screen flex items-center justify-center bg-[#F2F6F2]">
+      <div className="bg-white shadow-lg border border-green-700 rounded-lg p-8 w-full max-w-md">
 
-        <label className="block mb-2 text-sm font-semibold">Full Name</label>
+        <h2 className="text-2xl font-bold text-center text-[#004225] mb-6">
+          Kenya Land Registry Portal
+        </h2>
+
+        <label className="block font-semibold mb-1">Email</label>
         <input
-          type="text"
-          className="border p-2 w-full mb-4 rounded"
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Enter your name"
+          type="email"
+          className="w-full mb-4 p-2 border rounded"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Enter your email"
         />
 
-        <label className="block mb-2 text-sm font-semibold">Select Role</label>
+        <label className="block font-semibold mb-1">Select Role</label>
         <select
-          className="border p-2 w-full mb-4 rounded"
+          className="w-full mb-6 p-2 border rounded"
+          value={role}
           onChange={(e) => setRole(e.target.value)}
         >
           <option value="">-- Select Role --</option>
-          <option value="admin">Government Officer</option>
+          <option value="admin">Government Official</option>
           <option value="owner">Land Owner</option>
         </select>
 
         <button
-          type="submit"
-          className="bg-green-600 text-white w-full py-2 mt-2 rounded hover:bg-green-700"
+          className="w-full bg-[#006A4E] text-white py-2 rounded hover:bg-green-800"
+          onClick={handleLogin}
         >
           Login
         </button>
-      </form>
+
+        <p className="text-center text-sm mt-4">
+          Don't have an account?{" "}
+          <a href="/register" className="text-blue-700 underline">Register here</a>
+        </p>
+      </div>
     </div>
   );
 }
