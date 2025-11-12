@@ -1,40 +1,39 @@
 import { Link } from "react-router-dom";
-import { useUser } from "../context/UserContext";
 
 export default function Sidebar() {
-  const { role, logout } = useUser();
+  const menu = [
+    { path: "/", label: "Dashboard", icon: "📊" },
+    { path: "/register-property", label: "Register Property", icon: "📝" },
+    { path: "/view-lands", label: "View Lands", icon: "🏡" },
+    { path: "/reports", label: "Reports", icon: "📑" },
+  ];
 
   return (
-    <div className="bg-white w-64 h-screen shadow-md px-5 py-4 flex flex-col">
-      <h2 className="text-xl font-semibold text-green-700 mb-6">Land Registry</h2>
+    <aside className="bg-[#0C4B33] text-white h-screen w-64 p-4 border-r border-green-900 shadow-md">
+      {/* Logo */}
+      <div className="text-center mb-6">
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/d/d8/Coat_of_arms_of_Kenya_%28Official%29.svg"
+          className="w-14 mx-auto"
+          alt="Kenya Coat of Arms"
+        />
+        <h2 className="mt-2 font-bold text-lg tracking-wide">
+          Govt Land Portal
+        </h2>
+      </div>
 
-      <nav className="flex-1 space-y-2">
-        <Link to="/" className="block p-2 rounded hover:bg-gray-200">Dashboard</Link>
-        {/* Admin ONLY */}
-        {role === "admin" && (
-          <>
-            <Link to="/register-property" className="block p-2 rounded hover:bg-gray-200">
-              Register Property
-            </Link>
-            <Link to="/reports" className="block p-2 rounded hover:bg-gray-200">
-              Reports
-            </Link>
-          </>
-        )}
-        {/* Land Owner ONLY */}
-        {role === "owner" && (
-          <Link to="/view-lands" className="block p-2 rounded hover:bg-gray-200">
-            My Lands
+      {/* Menu */}
+      <nav className="space-y-2">
+        {menu.map((item) => (
+          <Link
+            key={item.path}
+            to={item.path}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-green-700 transition font-medium"
+          >
+            <span>{item.icon}</span> {item.label}
           </Link>
-        )}
+        ))}
       </nav>
-
-      <button 
-        onClick={logout}
-        className="bg-red-500 hover:bg-red-600 text-white py-2 rounded mt-4"
-      >
-        Logout
-      </button>
-    </div>
+    </aside>
   );
 }
