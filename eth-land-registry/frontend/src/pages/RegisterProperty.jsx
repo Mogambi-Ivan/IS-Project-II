@@ -1,105 +1,65 @@
 import { useState } from "react";
-import { ethers } from "ethers";
-import contractABI from "../../../artifacts/contracts/LandRegistry.sol/LandRegistry.json";
-
-
-
+import { useNavigate } from "react-router-dom";
 
 export default function RegisterProperty() {
-  const [landId, setLandId] = useState("");
-  const [location, setLocation] = useState("");
-  const [size, setSize] = useState("");
-  const [owner, setOwner] = useState("");
-  const [status, setStatus] = useState("");
+  const navigate = useNavigate();
 
-  const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; // replace with your deployed address
+  const [form, setForm] = useState({
+    ownerName: "",
+    nationalId: "",
+    titleNumber: "",
+    location: "",
+    size: "",
+    landType: "",
+  });
 
-  const handleSubmit = async (e) => {
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = (e) => {
     e.preventDefault();
 
-    try {
-      if (!window.ethereum) {
-        setStatus("❌ MetaMask not found");
-        return;
-      }
+    // save to localStorage as pending request
+    const requests = JSON.parse(localStorage.getItem("landRequests") || "[]");
+    requests.push(form);
+    localStorage.setItem("landRequests", JSON.stringify(requests));
 
-      await window.ethereum.request({ method: "eth_requestAccounts" });
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(
-        contractAddress,
-        contractABI.abi,
-        signer
-      );
-
-      const tx = await contract.registerLand(
-        parseInt(landId),
-        location,
-        parseInt(size),
-        owner
-      );
-
-      setStatus("⏳ Transaction submitted...");
-      await tx.wait();
-
-      setStatus("✅ Land registered successfully!");
-      setLandId("");
-      setLocation("");
-      setSize("");
-      setOwner("");
-    } catch (err) {
-      console.error(err);
-      setStatus("❌ Transaction failed");
-    }
+    alert("✅ Land registration request submitted!");
+    navigate("/");
   };
 
   return (
-    <div className="p-8 max-w-xl mx-auto bg-white shadow-lg rounded-lg">
-      <h2 className="text-2xl font-semibold mb-4">Register New Property</h2>
+    <div className="p-6">
+      <h2 className="text-xl font-bold mb-4 text-[#003366]">Register New Land</h2>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <input
-          type="number"
-          placeholder="Land ID"
-          value={landId}
-          onChange={(e) => setLandId(e.target.value)}
-          className="w-full border p-2 rounded"
-          required
-        />
-        <input
-          type="text"
-          placeholder="Location"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          className="w-full border p-2 rounded"
-          required
-        />
-        <input
-          type="number"
-          placeholder="Size (sqm)"
-          value={size}
-          onChange={(e) => setSize(e.target.value)}
-          className="w-full border p-2 rounded"
-          required
-        />
-        <input
-          type="text"
-          placeholder="Owner Address"
-          value={owner}
-          onChange={(e) => setOwner(e.target.value)}
-          className="w-full border p-2 rounded"
-          required
-        />
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition"
-        >
-          Register
+      <form onSubmit={handleSubmit} className="grid gap-4 w-full max-w-lg bg-white p-6 shadow rounded">
+        <input name="ownerName" placeholder="Owner Full Name" className="p-2 border rounded"
+          onChange={handleChange} required />
+
+        <input name="nationalId" placeholder="National ID Number" className="p-2 border rounded"
+          onChange={handleChange} required />
+
+        <input name="titleNumber" placeholder="Land Title Number" className="p-2 border rounded"
+          onChange={handleChange} required />
+
+        <input name="location" placeholder="Location (County, Estate)" className="p-2 border rounded"
+          onChange={handleChange} required />
+
+        <input name="size" placeholder="Size (sqm)" className="p-2 border rounded"
+          onChange={handleChange} required />
+
+        <select name="landType" className="p-2 border rounded" onChange={handleChange} required>
+          <option value="">Select Land Type</option>
+          <option value="Residential">Residential</option>
+          <option value="Commercial">Commercial</option>
+          <option value="Agricultural">Agricultural</option>
+        </select>
+
+        <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+          Submit Request
         </button>
       </form>
-
-      {status && <p className="mt-4 text-center text-gray-700">{status}</p>}
     </div>
   );
 }

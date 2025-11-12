@@ -1,44 +1,88 @@
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { useEffect, useState } from "react";
+
 export default function ReportPage() {
-  const mockData = [
-    { id: 1, owner: "John Doe", location: "Nairobi", size: "200 sqm" },
-    { id: 2, owner: "Jane Waweru", location: "Mombasa", size: "300 sqm" }
-  ];
+  const [lands, setLands] = useState([]);
+
+  useEffect(() => {
+    const data = JSON.parse(localStorage.getItem("registeredLands") || "[]");
+    setLands(data);
+  }, []);
 
   const downloadPDF = () => {
-    alert("PDF Export Coming Soon ✅");
+    try {
+      const doc = new jsPDF();
+
+      doc.setFontSize(16);
+      doc.text("Government Land Registry Report", 14, 14);
+
+      const tableColumn = [
+        "Owner Name",
+        "National ID",
+        "Title Number",
+        "Location",
+        "Size (sqm)",
+        "Land Type",
+      ];
+
+      const tableRows = lands.map((land) => [
+        land.ownerName || "-",
+        land.nationalId || "-",
+        land.titleNumber || "-",
+        land.location || "-",
+        land.size || "-",
+        land.landType || "-",
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 20,
+      });
+
+      doc.save("land_registry_report.pdf");
+    } catch (error) {
+      console.error("PDF Download Error:", error);
+      alert("❌ Could not generate PDF — check console for details.");
+    }
   };
 
   return (
     <div className="p-6">
-      <h2 className="text-xl font-semibold mb-4">Land Registry Reports</h2>
+      <h2 className="text-xl font-bold text-[#003366] mb-4">Land Registry Reports</h2>
+
+      <button
+        onClick={downloadPDF}
+        className="bg-green-600 text-white px-4 py-2 rounded mb-4 hover:bg-green-700"
+      >
+        ⬇ Download PDF Report
+      </button>
 
       <table className="w-full border">
-        <thead className="bg-gray-200">
-          <tr>
-            <th className="border p-2">Property ID</th>
+        <thead>
+          <tr className="bg-gray-100">
             <th className="border p-2">Owner</th>
+            <th className="border p-2">ID</th>
+            <th className="border p-2">Title No.</th>
             <th className="border p-2">Location</th>
             <th className="border p-2">Size</th>
+            <th className="border p-2">Type</th>
           </tr>
         </thead>
         <tbody>
-          {mockData.map((row) => (
-            <tr key={row.id}>
-              <td className="border p-2">{row.id}</td>
-              <td className="border p-2">{row.owner}</td>
-              <td className="border p-2">{row.location}</td>
-              <td className="border p-2">{row.size}</td>
+          {lands.map((l, i) => (
+            <tr key={i}>
+              <td className="border p-2">{l.ownerName}</td>
+              <td className="border p-2">{l.nationalId}</td>
+              <td className="border p-2">{l.titleNumber}</td>
+              <td className="border p-2">{l.location}</td>
+              <td className="border p-2">{l.size}</td>
+              <td className="border p-2">{l.landType}</td>
             </tr>
           ))}
         </tbody>
       </table>
-
-      <button 
-        className="mt-4 bg-green-600 text-white px-4 py-2 rounded"
-        onClick={downloadPDF}
-      >
-        Export to PDF
-      </button>
     </div>
   );
 }
