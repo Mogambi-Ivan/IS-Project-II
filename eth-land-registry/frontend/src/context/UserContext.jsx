@@ -2,25 +2,26 @@ import { createContext, useContext, useState } from "react";
 
 const UserContext = createContext();
 
-export const UserProvider = ({ children }) => {
-  const [role, setRole] = useState(null); // "admin" or "owner"
-  const [wallet, setWallet] = useState(null);
+export function UserProvider({ children }) {
+  const [user, setUser] = useState(null);
 
-  const loginAs = (selectedRole) => {
-    setRole(selectedRole);
-    setWallet("0x1234...MockWallet"); // mock until metamask fixed
-  };
+  function login(name, role) {
+    setUser({ name, role });
+    localStorage.setItem("user", JSON.stringify({ name, role }));
+  }
 
-  const logout = () => {
-    setRole(null);
-    setWallet(null);
-  };
+  function logout() {
+    setUser(null);
+    localStorage.removeItem("user");
+  }
 
   return (
-    <UserContext.Provider value={{ role, wallet, loginAs, logout }}>
+    <UserContext.Provider value={{ user, login, logout }}>
       {children}
     </UserContext.Provider>
   );
-};
+}
 
-export const useUser = () => useContext(UserContext);
+export function useUser() {
+  return useContext(UserContext);
+}

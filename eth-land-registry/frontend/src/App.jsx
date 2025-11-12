@@ -1,19 +1,22 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useUser } from "./context/UserContext";
-import Login from "./pages/Login";
+import { useUser } from "./context/UserContext.jsx";
 
-import Sidebar from "./components/Sidebar";
-import Navbar from "./components/Navbar";
+import Login from "./pages/Login.jsx";
+import Sidebar from "./components/Sidebar.jsx";
+import Navbar from "./components/Navbar.jsx";
 
-import Dashboard from "./pages/Dashboard";
-import RegisterProperty from "./pages/RegisterProperty";
-import ViewLands from "./pages/ViewLands";
-import ReportPage from "./pages/ReportPage";
+import Dashboard from "./pages/Dashboard.jsx";
+import RegisterProperty from "./pages/RegisterProperty.jsx";
+import ViewLands from "./pages/ViewLands.jsx";
+import ReportPage from "./pages/ReportPage.jsx";
+
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import OwnerDashboard from "./pages/OwnerDashboard.jsx";
 
 export default function App() {
-  const { role } = useUser();
+  const { user } = useUser(); // ✅ Correct
 
-  if (!role) return <Login />;
+  if (!user) return <Login />; // ✅ Show Login if no user logged in
 
   return (
     <BrowserRouter>
@@ -23,7 +26,12 @@ export default function App() {
           <Navbar />
 
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            {/* Dashboard Redirects by role */}
+            <Route
+              path="/"
+              element={user.role === "admin" ? <AdminDashboard /> : <OwnerDashboard />}
+            />
+
             <Route path="/register-property" element={<RegisterProperty />} />
             <Route path="/view-lands" element={<ViewLands />} />
             <Route path="/reports" element={<ReportPage />} />
