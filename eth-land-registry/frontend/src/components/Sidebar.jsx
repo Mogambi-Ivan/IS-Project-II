@@ -1,15 +1,10 @@
 import { Link } from "react-router-dom";
+import { useUser } from "../context/UserContext";
 
 export default function Sidebar() {
-  const menu = [
-    { path: "/", label: "Dashboard", icon: "📊" },
-    { path: "/register-property", label: "Register Property", icon: "📝" },
-    { path: "/view-lands", label: "View Lands", icon: "🏡" },
-    { path: "/reports", label: "Reports", icon: "📑" },
-  ];
-
+  const { user } = useUser();
   return (
-  <aside className="bg-[#004225] text-white w-64 min-h-screen p-4">
+    <aside className="bg-[#004225] text-white w-64 min-h-screen p-4">
       {/* Logo */}
       <div className="text-center mb-6">
         <img
@@ -21,18 +16,15 @@ export default function Sidebar() {
           Govt Land Portal
         </h2>
       </div>
-
       {/* Menu */}
       <nav className="space-y-2">
-        {menu.map((item) => (
-          <Link
-            key={item.path}
-            to={item.path}
-            className="block py-2 px-3 rounded hover:bg-green-700"
-          >
-            <span>{item.icon}</span> {item.label}
-          </Link>
-        ))}
+        <Link to="/" className="block py-2 px-3 rounded hover:bg-green-700">📊 Dashboard</Link>
+        {user?.role === "owner" && (
+          <Link to="/register-property" className="block py-2 px-3 rounded hover:bg-green-700">📝 Register Property</Link>
+        )}
+        {user?.role === "admin" && (
+          <Link to="/reports" className="block py-2 px-3 rounded hover:bg-green-700">📄 Reports</Link>
+        )}
       </nav>
     </aside>
   );

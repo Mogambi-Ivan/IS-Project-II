@@ -1,5 +1,6 @@
+// frontend/src/pages/ReportPage.jsx
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import "jspdf-autotable";
 import { useEffect, useState } from "react";
 
 export default function ReportPage() {
@@ -17,33 +18,28 @@ export default function ReportPage() {
       doc.setFontSize(16);
       doc.text("Government Land Registry Report", 14, 14);
 
-      const tableColumn = [
-        "Owner Name",
-        "National ID",
-        "Title Number",
-        "Location",
-        "Size (sqm)",
-        "Land Type",
-      ];
-
-      const tableRows = lands.map((land) => [
-        land.ownerName || "-",
-        land.nationalId || "-",
-        land.titleNumber || "-",
-        land.location || "-",
-        land.size || "-",
-        land.landType || "-",
+      const head = [["Owner Name", "National ID", "Title Number", "Location", "Size (sqm)", "Land Type", "Proposed New Owner"]];
+      const body = lands.map((l) => [
+        l.ownerName || "-",
+        l.nationalId || "-",
+        l.titleNumber || "-",
+        l.location || "-",
+        l.size || "-",
+        l.landType || "-",
+        l.proposedNewOwner || "-",
       ]);
 
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: 20,
+      doc.autoTable({
+        head,
+        body,
+        startY: 22,
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [0, 66, 37] },
       });
 
       doc.save("land_registry_report.pdf");
-    } catch (error) {
-      console.error("PDF Download Error:", error);
+    } catch (err) {
+      console.error("PDF Download Error:", err);
       alert("❌ Could not generate PDF — check console for details.");
     }
   };
@@ -52,22 +48,20 @@ export default function ReportPage() {
     <div className="p-6">
       <h2 className="text-xl font-bold text-[#003366] mb-4">Land Registry Reports</h2>
 
-      <button
-        onClick={downloadPDF}
-        className="bg-green-600 text-white px-4 py-2 rounded mb-4 hover:bg-green-700"
-      >
+      <button onClick={downloadPDF} className="bg-green-600 text-white px-4 py-2 rounded mb-4 hover:bg-green-700">
         ⬇ Download PDF Report
       </button>
 
-      <table className="w-full border">
-        <thead>
-          <tr className="bg-gray-100">
+      <table className="w-full bg-white shadow border">
+        <thead className="bg-gray-100">
+          <tr>
             <th className="border p-2">Owner</th>
             <th className="border p-2">ID</th>
             <th className="border p-2">Title No.</th>
             <th className="border p-2">Location</th>
             <th className="border p-2">Size</th>
             <th className="border p-2">Type</th>
+            <th className="border p-2">Proposed New Owner</th>
           </tr>
         </thead>
         <tbody>
@@ -79,6 +73,7 @@ export default function ReportPage() {
               <td className="border p-2">{l.location}</td>
               <td className="border p-2">{l.size}</td>
               <td className="border p-2">{l.landType}</td>
+              <td className="border p-2">{l.proposedNewOwner || "-"}</td>
             </tr>
           ))}
         </tbody>

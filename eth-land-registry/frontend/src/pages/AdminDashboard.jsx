@@ -1,3 +1,4 @@
+// frontend/src/pages/AdminDashboard.jsx
 import { useUser } from "../context/UserContext";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -10,20 +11,21 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const lands = JSON.parse(localStorage.getItem("registeredLands") || "[]");
-    const pending = JSON.parse(localStorage.getItem("pendingLands") || "[]");
-
+    const pending = JSON.parse(localStorage.getItem("landRequests") || "[]");
     setRegisteredLands(lands);
     setPendingRequests(pending);
   }, []);
 
   const approveLand = (index) => {
     const selected = pendingRequests[index];
-    const updatedPending = [...pendingRequests];
+
+    const updatedPending = pendingRequests.slice();
     updatedPending.splice(index, 1);
 
-    const updatedRegistered = [...registeredLands, selected];
+    const updatedRegistered = [...registeredLands, { ...selected, approvedAt: Date.now() }];
 
-    localStorage.setItem("pendingLands", JSON.stringify(updatedPending));
+    // write back
+    localStorage.setItem("landRequests", JSON.stringify(updatedPending));
     localStorage.setItem("registeredLands", JSON.stringify(updatedRegistered));
 
     setPendingRequests(updatedPending);
@@ -36,43 +38,30 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-[#004225]">Government Land Registry Dashboard</h2>
+        <div className="flex gap-4">
+          <Link to="/reports" className="text-blue-700 underline font-semibold">📄 View Reports</Link>
+          <button onClick={logout} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Logout</button>
+        </div>
+      </div>
 
-      <h2 className="text-2xl font-bold text-[#004225] mb-6">
-        Government Land Registry Dashboard
-      </h2>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-4 border rounded shadow text-center">
           <h3 className="font-bold">Total Registered Lands</h3>
           <p className="text-2xl font-bold text-green-700">{registeredLands.length}</p>
         </div>
-
         <div className="bg-white p-4 border rounded shadow text-center">
           <h3 className="font-bold">Pending Requests</h3>
           <p className="text-2xl font-bold text-yellow-600">{pendingRequests.length}</p>
         </div>
-
         <div className="bg-white p-4 border rounded shadow text-center">
           <h3 className="font-bold">Registered Owners</h3>
           <p className="text-2xl font-bold text-blue-700">{totalOwners}</p>
         </div>
       </div>
 
-      <div className="flex justify-between mb-4">
-        <Link to="/reports" className="text-blue-700 underline font-semibold">
-          📄 View Reports
-        </Link>
-
-        <button 
-          onClick={logout}
-          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-        >
-          Logout
-        </button>
-      </div>
-
-      {/* Pending table */}
       <h3 className="text-xl font-semibold mb-2 text-[#004225]">Pending Land Requests</h3>
 
       {pendingRequests.length === 0 ? (
@@ -85,10 +74,10 @@ export default function AdminDashboard() {
               <th className="p-2 border">ID</th>
               <th className="p-2 border">Title No.</th>
               <th className="p-2 border">Location</th>
+              <th className="p-2 border">Proposed New Owner</th>
               <th className="p-2 border">Action</th>
             </tr>
           </thead>
-
           <tbody>
             {pendingRequests.map((req, i) => (
               <tr key={i} className="text-center border">
@@ -96,11 +85,9 @@ export default function AdminDashboard() {
                 <td className="p-2 border">{req.nationalId}</td>
                 <td className="p-2 border">{req.titleNumber}</td>
                 <td className="p-2 border">{req.location}</td>
+                <td className="p-2 border">{req.proposedNewOwner || "-"}</td>
                 <td className="p-2 border">
-                  <button
-                    onClick={() => approveLand(i)}
-                    className="bg-green-700 text-white px-3 py-1 rounded hover:bg-green-800"
-                  >
+                  <button onClick={() => approveLand(i)} className="bg-green-700 text-white px-3 py-1 rounded hover:bg-green-800">
                     ✅ Approve
                   </button>
                 </td>
@@ -109,7 +96,6 @@ export default function AdminDashboard() {
           </tbody>
         </table>
       )}
-
     </div>
   );
 }
