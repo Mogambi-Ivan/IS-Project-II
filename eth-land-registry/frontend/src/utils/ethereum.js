@@ -1,37 +1,30 @@
+// frontend/src/utils/ethereum.js
+
 import { ethers } from "ethers";
 
-// Initialize MetaMask connection
-export async function connectWallet() {
-  if (typeof window.ethereum === "undefined") {
-    alert("MetaMask is not installed!");
+export async function getCurrentWallet() {
+  if (!window.ethereum) {
+    console.log("No Ethereum wallet detected.");
     return null;
   }
 
   try {
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    await provider.send("eth_requestAccounts", []);
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-
-    console.log("✅ Connected wallet:", address);
-    return { provider, signer, address };
-  } catch (error) {
-    console.error("❌ MetaMask connection failed:", error);
+    const provider = new ethers.providers.Web3Provider(window.ethereum); // ✅ Ethers v5 syntax
+    const accounts = await provider.send("eth_requestAccounts", []);
+    return accounts[0];
+  } catch (err) {
+    console.error("Wallet connection error:", err);
     return null;
   }
 }
 
-// Function to check if already connected
-export async function getCurrentWallet() {
-  if (typeof window.ethereum === "undefined") return null;
-
-  const provider = new ethers.BrowserProvider(window.ethereum);
-  const accounts = await provider.send("eth_accounts", []);
-  if (accounts.length > 0) {
-    const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-    return { provider, signer, address };
+export async function connectWallet() {
+  try {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const accounts = await provider.send("eth_requestAccounts", []);
+    return accounts[0];
+  } catch (err) {
+    console.error("Connect wallet error:", err);
+    return null;
   }
-
-  return null;
 }
