@@ -1,41 +1,58 @@
+// frontend/src/App.jsx
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useUser } from "./context/UserContext.jsx";
+import { useUser } from "./context/UserContext";
 
-import Login from "./pages/Login.jsx";
-import Sidebar from "./components/Sidebar.jsx";
-import Navbar from "./components/Navbar.jsx";
+import Navbar from "./components/Navbar";
+import Sidebar from "./components/Sidebar";
 
-import Dashboard from "./pages/Dashboard.jsx";
-import RegisterProperty from "./pages/RegisterProperty.jsx";
-import ViewLands from "./pages/ViewLands.jsx";
-import ReportPage from "./pages/ReportPage.jsx";
-
-import AdminDashboard from "./pages/AdminDashboard.jsx";
-import OwnerDashboard from "./pages/OwnerDashboard.jsx";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import RegisterProperty from "./pages/RegisterProperty";
+import ViewLands from "./pages/ViewLands";
+import ReportPage from "./pages/ReportPage";
+import AdminDashboard from "./pages/AdminDashboard";
 
 export default function App() {
-  const { user } = useUser(); // ✅ Correct
+  const { role } = useUser();
 
-  if (!user) return <Login />; // ✅ Show Login if no user logged in
+  // If not logged in → just show login
+  if (!role) {
+    return <Login />;
+  }
+
+  const isGov =
+    role === "admin" ||
+    role === "government" ||
+    role === "gov"; // in case of label differences
 
   return (
     <BrowserRouter>
-      <div className="flex">
+      <div className="flex min-h-screen bg-[#f3faf5]">
         <Sidebar />
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           <Navbar />
-
-          <Routes>
-            {/* Dashboard Redirects by role */}
-            <Route
-              path="/"
-              element={user.role === "admin" ? <AdminDashboard /> : <OwnerDashboard />}
-            />
-
-            <Route path="/register-property" element={<RegisterProperty />} />
-            <Route path="/view-lands" element={<ViewLands />} />
-            <Route path="/reports" element={<ReportPage />} />
-          </Routes>
+          <main className="flex-1 p-6">
+            <Routes>
+              {isGov ? (
+                <>
+                  {/* Government / Admin dashboard with stats & approvals */}
+                  <Route path="/" element={<AdminDashboard />} />
+                  <Route path="/view-lands" element={<ViewLands />} />
+                  <Route path="/reports" element={<ReportPage />} />
+                </>
+              ) : (
+                <>
+                  {/* Land owner experience */}
+                  <Route path="/" element={<Dashboard />} />
+                  <Route
+                    path="/register-property"
+                    element={<RegisterProperty />}
+                  />
+                  <Route path="/view-lands" element={<ViewLands />} />
+                </>
+              )}
+            </Routes>
+          </main>
         </div>
       </div>
     </BrowserRouter>

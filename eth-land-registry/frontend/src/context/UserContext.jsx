@@ -1,27 +1,31 @@
+// frontend/src/context/UserContext.jsx
 import { createContext, useContext, useState } from "react";
 
-const UserContext = createContext();
+const UserContext = createContext(null);
 
 export function UserProvider({ children }) {
-  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null); // "owner" | "admin" | "government"
 
-  function login(name, role) {
-    setUser({ name, role });
-    localStorage.setItem("user", JSON.stringify({ name, role }));
-  }
+  const login = (selectedRole) => {
+    setRole(selectedRole);
+  };
 
-  function logout() {
-    setUser(null);
-    localStorage.removeItem("user");
-  }
+  const logout = () => {
+    setRole(null);
+    // clear anything you want on logout, e.g. localStorage.removeItem("something");
+  };
 
   return (
-    <UserContext.Provider value={{ user, login, logout }}>
+    <UserContext.Provider value={{ role, login, logout }}>
       {children}
     </UserContext.Provider>
   );
 }
 
 export function useUser() {
-  return useContext(UserContext);
+  const ctx = useContext(UserContext);
+  if (!ctx) {
+    throw new Error("useUser must be used inside <UserProvider>");
+  }
+  return ctx;
 }
