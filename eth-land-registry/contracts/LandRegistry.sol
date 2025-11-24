@@ -3,59 +3,185 @@ pragma solidity ^0.8.20;
 
 contract LandRegistry {
     address public governmentOfficial;
-
-    struct LandRecord {
-        uint256 landId;
-        string location;
-        uint256 size;
-        address currentOwner;
-        bool isRegistered;
-    }
-
-    mapping(uint256 => LandRecord) public landRecords;
-
-    event LandRegistered(uint256 landId, string location, uint256 size, address indexed owner);
-    event OwnershipTransferred(uint256 landId, address indexed oldOwner, address indexed newOwner);
-
-    modifier onlyGovernment() {
-        require(msg.sender == governmentOfficial, "Only government can perform this action");
-        _;
-    }
-
-    modifier onlyOwner(uint256 landId) {
-        require(landRecords[landId].currentOwner == msg.sender, "Only current owner can transfer");
-        _;
-    }
+    address public admin;
 
     constructor() {
-        governmentOfficial = msg.sender;
+        admin = msg.sender;
+        governmentOfficial = msg.sender; // default gov = deployer for local testing
     }
 
-    function registerLand(uint256 landId, string memory location, uint256 size, address owner) public onlyGovernment {
-        require(!landRecords[landId].isRegistered, "Land already registered");
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only admin allowed");
+        _;
+    }
 
-        landRecords[landId] = LandRecord({
-            landId: landId,
-            location: location,
-            size: size,
-            currentOwner: owner,
-            isRegistered: true
+    modifier onlyGovernment() {
+        require(msg.sender == governmentOfficial, "Only government official allowed");
+        _;
+    }
+
+    // =========================
+    // LAND REGISTRATION
+    // =========================
+    struct Land {
+        uint256 landId;
+        string ownerName;
+        string nationalId;
+        string titleNumber;
+        string location;
+        string size;
+        string landType;
+        address currentOwner;
+        bool isRegistered;
+        uint256 approvedAt;
+    }
+
+    // All lands by id
+    mapping(uint256 => Land) public landRecords;
+
+    // Track all registration requests
+    uint256[] public requestedLandIds;
+
+    // Owner => list of their landIds
+    mapping(address => uint256[]) public landsByOwner;
+
+    event LandRequested(uint256 landId, address owner);
+    event LandApproved(uint256 landId, address owner);
+
+    function requestLandRegistration(
+        uint256 _landId,
+        string memory _ownerName,
+        string memory _nationalId,
+        string memory _titleNumber,
+        string memory _location,
+        string memory _size,
+        string memory _landType
+    ) public {
+        require(landRecords[_landId].currentOwner == address(0), "Land ID already exists");
+
+        landRecords[_landId] = Land({
+            landId: _landId,
+            ownerName: _ownerName,
+            nationalId: _nationalId,
+            titleNumber: _titleNumber,
+            location: _location,
+            size: _size,
+            landType: _landType,
+            currentOwner: msg.sender,
+            isRegistered: false,
+            approvedAt: 0
         });
 
-        emit LandRegistered(landId, location, size, owner);
+        requestedLandIds.push(_landId);
+
+        emit LandRequested(_landId, msg.sender);
     }
 
-    function transferLand(uint256 landId, address newOwner) public onlyOwner(landId) {
-        require(landRecords[landId].isRegistered, "Land not registered");
+    function approveLand(uint256 _landId) public onlyGovernment {
+        Land storage land = landRecords[_landId];
+        require(land.currentOwner != address(0), "Land not requested");
+        require(!land.isRegistered, "Already registered");
 
-        address oldOwner = landRecords[landId].currentOwner;
-        landRecords[landId].currentOwner = newOwner;
+        land.isRegistered = true;
+        land.approvedAt = block.timestamp;
 
-        emit OwnershipTransferred(landId, oldOwner, newOwner);
+        landsByOwner[land.currentOwner].push(_landId);
+
+        emit LandApproved(_landId, land.currentOwner);
     }
 
-    function getLandDetails(uint256 landId) public view returns (string memory, uint256, address, bool) {
-        LandRecord memory record = landRecords[landId];
-        return (record.location, record.size, record.currentOwner, record.isRegistered);
+    function getRequestedLandIds() public view returns (uint256[] memory) {
+        return requestedLandIds;
+    }
+
+    function getLandsByOwner(address _owner) public view returns (uint256[] memory) {
+        return landsByOwner[_owner];
+    }
+
+    // =========================
+    // TRANSFER REQUESTS
+    // =========================
+    struct TransferRequest {
+        uint256 landId;
+        address fromOwner;
+        address toOwner;
+        string proposedNewOwnerName;
+        bool approved;
+        bool rejected;
+        uint256 decidedAt;
+    }
+
+    mapping(uint256 => TransferRequest) public transferRequests;
+    uint256[] public pendingTransferIds;
+
+    event TransferRequested(uint256 landId, address fromOwner, address toOwner);
+    event TransferApproved(uint256 landId, address newOwner);
+    event TransferRejected(uint256 landId);
+
+    function requestTransfer(
+        uint256 _landId,
+        address _newOwner,
+        string memory _newOwnerName
+    ) public {
+        Land storage land = landRecords[_landId];
+
+        require(land.isRegistered, "Land not registered");
+        require(land.currentOwner == msg.sender, "Not current owner");
+        require(_newOwner != address(0), "Invalid new owner");
+
+        transferRequests[_landId] = TransferRequest({
+            landId: _landId,
+            fromOwner: msg.sender,
+            toOwner: _newOwner,
+            proposedNewOwnerName: _newOwnerName,
+            approved: false,
+            rejected: false,
+            decidedAt: 0
+        });
+
+        pendingTransferIds.push(_landId);
+
+        emit TransferRequested(_landId, msg.sender, _newOwner);
+    }
+
+    function approveTransfer(uint256 _landId) public onlyGovernment {
+        TransferRequest storage req = transferRequests[_landId];
+        Land storage land = landRecords[_landId];
+
+        require(req.fromOwner != address(0), "No transfer request");
+        require(!req.approved && !req.rejected, "Already decided");
+
+        land.currentOwner = req.toOwner;
+
+        req.approved = true;
+        req.decidedAt = block.timestamp;
+
+        landsByOwner[req.toOwner].push(_landId);
+
+        emit TransferApproved(_landId, req.toOwner);
+    }
+
+    function rejectTransfer(uint256 _landId) public onlyGovernment {
+        TransferRequest storage req = transferRequests[_landId];
+
+        require(req.fromOwner != address(0), "No transfer request");
+        require(!req.approved && !req.rejected, "Already decided");
+
+        req.rejected = true;
+        req.decidedAt = block.timestamp;
+
+        emit TransferRejected(_landId);
+    }
+
+    function getPendingTransferIds() public view returns (uint256[] memory) {
+        return pendingTransferIds;
+    }
+
+    // =========================
+    // ADMIN ACTIONS
+    // =========================
+    function setGovernmentOfficial(address _newGov) public onlyAdmin {
+        require(_newGov != address(0), "Invalid address");
+        governmentOfficial = _newGov;
     }
 }
