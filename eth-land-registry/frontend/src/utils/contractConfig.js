@@ -1,5 +1,5 @@
-import contractABI from "../../../artifacts/contracts/LandRegistry.sol/LandRegistry.json";
+import contractJson from "../../../artifacts/contracts/LandRegistry.sol/LandRegistry.json";
 
+export const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+export const contractABI = contractJson.abi;
 
-export const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; //✅ your deployed address
-export const abi = contractABI.abi;
