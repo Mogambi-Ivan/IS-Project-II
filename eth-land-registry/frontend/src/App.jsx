@@ -6,11 +6,13 @@ import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
+import OwnerDashboard from "./pages/OwnerDashboard";
 import RegisterProperty from "./pages/RegisterProperty";
 import ViewLands from "./pages/ViewLands";
 import ReportPage from "./pages/ReportPage";
 import AdminDashboard from "./pages/AdminDashboard";
+import TransferRequestPage from "./pages/TransferRequestPage";
+import AdminTransfersPage from "./pages/AdminTransfersPage";
 
 export default function App() {
   const { role } = useUser();
@@ -35,20 +37,22 @@ export default function App() {
             <Routes>
               {isGov ? (
                 <>
-                  {/* Government / Admin dashboard with stats & approvals */}
+                  {/* Government / Admin experience */}
                   <Route path="/" element={<AdminDashboard />} />
                   <Route path="/view-lands" element={<ViewLands />} />
                   <Route path="/reports" element={<ReportPage />} />
+                  <Route path="/transfers" element={<AdminTransfersPage />} />
                 </>
               ) : (
                 <>
                   {/* Land owner experience */}
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/" element={<OwnerDashboard />} />
                   <Route
                     path="/register-property"
                     element={<RegisterProperty />}
                   />
-                  <Route path="/view-lands" element={<ViewLands />} />
+                  <Route path="/view-lands" element={<OwnerDashboard />} />
+                  <Route path="/transfer" element={<TransferRequestPage />} />
                 </>
               )}
             </Routes>

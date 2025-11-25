@@ -7,16 +7,19 @@ const MENU = {
     { to: "/", label: "Dashboard" },
     { to: "/register-property", label: "Register Property" },
     { to: "/view-lands", label: "My Lands" },
+    { to: "/transfer", label: "Request Transfer" },        // ✅ NEW
   ],
   admin: [
     { to: "/", label: "Dashboard" },
     { to: "/view-lands", label: "Registered Lands" },
     { to: "/reports", label: "Reports" },
+    { to: "/transfers", label: "Transfer Requests" },      // ✅ NEW
   ],
   government: [
     { to: "/", label: "Dashboard" },
     { to: "/view-lands", label: "Registered Lands" },
     { to: "/reports", label: "Reports" },
+    { to: "/transfers", label: "Transfer Requests" },      // ✅ NEW
   ],
 };
 
@@ -63,4 +66,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-
