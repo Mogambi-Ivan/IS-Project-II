@@ -4,19 +4,19 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getContractReadOnly } from "../utils/ethereum";
 
-
 const ReportPage = () => {
-  const [registeredLands, setRegisteredLands] = useState([]);
+  const [registered, setRegistered] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadRegisteredLands();
+    // clear any legacy mock
+    try {
+      localStorage.removeItem("registeredLands");
+    } catch (e) {}
+    loadRegistered();
   }, []);
 
-  // -----------------------------
-  // ON-CHAIN FIRST: Load registered lands
-  // -----------------------------
-  async function loadRegisteredLands() {
+  async function loadRegistered() {
     setLoading(true);
     try {
       const contract = await getContractReadOnly();
@@ -24,176 +24,168 @@ const ReportPage = () => {
 
       const ids = await contract.getRequestedLandIds();
 
-      const lands = await Promise.all(
+      const all = await Promise.all(
         ids.map(async (idBN) => {
           const id = idBN.toNumber();
+
           const land = await contract.landRecords(id);
+          const tr = await contract.transferRequests(id);
+
+          const landId = land.landId.toNumber();
+          const isRegistered = land.isRegistered;
+          const approvedAt = land.approvedAt.toNumber();
+          const currentOwner = land.currentOwner;
+
+          const hasApprovedTransfer = tr.approved;
+          const displayOwnerName = hasApprovedTransfer
+            ? tr.proposedNewOwnerName
+            : land.ownerName;
 
           return {
-            landId: land.landId.toNumber(),
-            ownerName: land.ownerName,
+            landId,
+            originalOwnerName: land.ownerName,
+            ownerName: displayOwnerName,
             nationalId: land.nationalId,
             titleNumber: land.titleNumber,
             location: land.location,
             size: land.size,
             landType: land.landType,
-            currentOwner: land.currentOwner,
-            isRegistered: land.isRegistered,
-            approvedAt: land.approvedAt.toNumber(),
+            currentOwner,
+            isRegistered,
+            approvedAt,
           };
         })
       );
 
-      const registered = lands.filter((l) => l.isRegistered);
-      setRegisteredLands(registered);
-
-      setLoading(false);
-      return;
+      const reg = all.filter((l) => l.isRegistered);
+      setRegistered(reg);
     } catch (err) {
-      console.log("On-chain registered fetch failed, using mock:", err);
-
-      // -----------------------------
-      // MOCK FALLBACK (localStorage)
-      // -----------------------------
-      try {
-        const stored = JSON.parse(localStorage.getItem("registeredLands")) || [];
-        setRegisteredLands(stored);
-      } catch (mockErr) {
-        console.error("Mock registered fetch failed:", mockErr);
-      }
-
+      console.error("Failed to load report data:", err);
+      alert(
+        "Could not load report data from the blockchain. Check console for details."
+      );
+    } finally {
       setLoading(false);
     }
   }
 
-  // -----------------------------
-  // Export PDF Report
-  // -----------------------------
-  function exportToPDF() {
-    if (!registeredLands || registeredLands.length === 0) {
+  function exportPDF() {
+    if (registered.length === 0) {
       alert("No registered lands to export.");
       return;
     }
 
     const doc = new jsPDF();
 
-    doc.setFontSize(16);
-    doc.text("Land Registry Report (Registered Lands)", 14, 15);
+    doc.setFontSize(14);
+    doc.text(
+      "Kenya Blockchain Land Registry - Registered Lands Report",
+      14,
+      16
+    );
 
-    doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22);
-
-    const tableData = registeredLands.map((l, i) => [
-      i + 1,
-      l.landId,
-      l.ownerName,
-      l.nationalId,
-      l.titleNumber,
-      l.location,
-      l.size,
-      l.landType,
-      l.currentOwner ? l.currentOwner.slice(0, 10) + "..." : "N/A",
-      l.approvedAt
-        ? new Date(l.approvedAt * 1000).toLocaleDateString()
-        : "N/A",
+    const rows = registered.map((r) => [
+      r.landId,
+      r.ownerName,
+      r.nationalId,
+      r.titleNumber,
+      r.location,
+      r.size,
+      r.landType,
+      r.currentOwner.slice(0, 10) + "...",
+      r.approvedAt ? new Date(r.approvedAt * 1000).toLocaleString() : "-",
     ]);
 
     autoTable(doc, {
+      startY: 24,
       head: [
         [
-          "#",
           "Land ID",
-          "Owner Name",
+          "Owner",
           "National ID",
-          "Title Number",
+          "Title #",
           "Location",
           "Size",
           "Type",
-          "Owner Wallet",
-          "Approved Date",
+          "Wallet",
+          "Approved At",
         ],
       ],
-      body: tableData,
-      startY: 28,
+      body: rows,
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [0, 102, 51] }, // deep green Kenyan gov vibe
+      headStyles: { fillColor: [0, 80, 40] },
     });
 
-    doc.save("Land_Registry_Report.pdf");
+    doc.save("registered-lands-report.pdf");
   }
 
   return (
     <div className="p-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-        <h1 className="text-2xl font-semibold">
-          Registered Lands Report
-        </h1>
+      <h1 className="text-2xl font-semibold mb-4">
+        Registered Lands Report (On-chain)
+      </h1>
 
-        <div className="flex gap-2">
-          <button
-            onClick={loadRegisteredLands}
-            className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
-          >
-            Refresh
-          </button>
+      <div className="mb-4 flex items-center gap-3">
+        <button
+          onClick={loadRegistered}
+          className="bg-green-700 text-white px-3 py-2 rounded-lg hover:bg-green-800"
+        >
+          Refresh from Blockchain
+        </button>
 
-          <button
-            onClick={exportToPDF}
-            className="bg-green-700 text-white px-4 py-2 rounded-lg hover:bg-green-800"
-          >
-            Export PDF
-          </button>
-        </div>
+        <button
+          onClick={exportPDF}
+          disabled={registered.length === 0}
+          className="bg-blue-700 text-white px-3 py-2 rounded-lg hover:bg-blue-800 disabled:opacity-60"
+        >
+          Export PDF
+        </button>
       </div>
 
-      <div className="bg-white rounded-xl shadow p-4">
-        {loading ? (
-          <p className="text-gray-600">Loading registered lands...</p>
-        ) : registeredLands.length === 0 ? (
-          <p className="text-gray-600">No registered lands found.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2">Land ID</th>
-                  <th>Owner Name</th>
-                  <th>National ID</th>
-                  <th>Title #</th>
-                  <th>Location</th>
-                  <th>Size</th>
-                  <th>Type</th>
-                  <th>Owner Wallet</th>
-                  <th>Approved At</th>
+      {loading ? (
+        <p>Loading report data from blockchain...</p>
+      ) : registered.length === 0 ? (
+        <p className="text-gray-600">No registered lands yet.</p>
+      ) : (
+        <div className="overflow-x-auto bg-white rounded-xl shadow">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left border-b">
+                <th className="py-2 px-2">Land ID</th>
+                <th className="px-2">Owner</th>
+                <th className="px-2">National ID</th>
+                <th className="px-2">Title #</th>
+                <th className="px-2">Location</th>
+                <th className="px-2">Size</th>
+                <th className="px-2">Type</th>
+                <th className="px-2">Wallet</th>
+                <th className="px-2">Approved At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registered.map((r) => (
+                <tr key={r.landId} className="border-b last:border-b-0">
+                  <td className="py-2 px-2">{r.landId}</td>
+                  <td className="px-2">{r.ownerName}</td>
+                  <td className="px-2">{r.nationalId}</td>
+                  <td className="px-2">{r.titleNumber}</td>
+                  <td className="px-2">{r.location}</td>
+                  <td className="px-2">{r.size}</td>
+                  <td className="px-2">{r.landType}</td>
+                  <td className="px-2 font-mono text-xs">
+                    {r.currentOwner.slice(0, 10)}...
+                  </td>
+                  <td className="px-2">
+                    {r.approvedAt
+                      ? new Date(r.approvedAt * 1000).toLocaleString()
+                      : "-"}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {registeredLands.map((l, idx) => (
-                  <tr key={idx} className="border-b last:border-b-0">
-                    <td className="py-2">{l.landId}</td>
-                    <td>{l.ownerName}</td>
-                    <td>{l.nationalId}</td>
-                    <td>{l.titleNumber}</td>
-                    <td>{l.location}</td>
-                    <td>{l.size}</td>
-                    <td>{l.landType}</td>
-                    <td className="font-mono text-xs">
-                      {l.currentOwner
-                        ? l.currentOwner.slice(0, 10) + "..."
-                        : "N/A"}
-                    </td>
-                    <td>
-                      {l.approvedAt
-                        ? new Date(l.approvedAt * 1000).toLocaleString()
-                        : "N/A"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

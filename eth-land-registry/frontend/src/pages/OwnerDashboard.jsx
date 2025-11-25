@@ -1,261 +1,200 @@
 // frontend/src/pages/OwnerDashboard.jsx
 import React, { useEffect, useState } from "react";
-import { getContractReadOnly, getCurrentWallet } from "../utils/ethereum";
-
+import {
+  getContractReadOnly,
+  getCurrentWallet,
+} from "../utils/ethereum";
 
 const OwnerDashboard = () => {
-  const [myPending, setMyPending] = useState([]);
-  const [myLands, setMyLands] = useState([]);
-  const [loadingPending, setLoadingPending] = useState(false);
-  const [loadingLands, setLoadingLands] = useState(false);
+  const [wallet, setWallet] = useState(null);
+  const [pending, setPending] = useState([]);
+  const [registered, setRegistered] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadMyPendingRequests();
-    loadMyRegisteredLands();
+    loadMyLands();
   }, []);
 
-  // Try to find current user (for MOCK fallback filtering)
-  function getMockUserNationalId() {
+  async function loadMyLands() {
+    setLoading(true);
     try {
-      const keysToTry = ["currentUser", "user", "selectedUser", "loggedInUser"];
-      for (const k of keysToTry) {
-        const val = localStorage.getItem(k);
-        if (!val) continue;
-        const parsed = JSON.parse(val);
-        if (parsed?.nationalId) return parsed.nationalId;
-      }
-    } catch (e) {
-      // ignore
-    }
-    return null;
-  }
-
-  // -----------------------------
-  // ON-CHAIN FIRST: My pending requests
-  // -----------------------------
-  async function loadMyPendingRequests() {
-    setLoadingPending(true);
-    try {
-      const wallet = await getCurrentWallet();
+      const w = await getCurrentWallet();
       const contract = await getContractReadOnly();
-      if (!wallet || !contract) throw new Error("No wallet/provider");
 
+      if (!w || !contract) throw new Error("No wallet / provider");
+
+      setWallet(w);
+
+      // 1. Get ALL land IDs ever requested
       const ids = await contract.getRequestedLandIds();
 
-      const lands = await Promise.all(
+      const all = await Promise.all(
         ids.map(async (idBN) => {
           const id = idBN.toNumber();
+
           const land = await contract.landRecords(id);
+          const tr = await contract.transferRequests(id); // may be empty struct
+
+          const landId = land.landId.toNumber();
+          const isRegistered = land.isRegistered;
+          const approvedAt = land.approvedAt.toNumber();
+          const currentOwner = land.currentOwner;
+
+          const hasApprovedTransfer = tr.approved;
+          const displayOwnerName = hasApprovedTransfer
+            ? tr.proposedNewOwnerName
+            : land.ownerName;
 
           return {
-            landId: land.landId.toNumber(),
-            ownerName: land.ownerName,
+            landId,
+            originalOwnerName: land.ownerName,
+            displayOwnerName,
             nationalId: land.nationalId,
             titleNumber: land.titleNumber,
             location: land.location,
             size: land.size,
             landType: land.landType,
-            currentOwner: land.currentOwner,
-            isRegistered: land.isRegistered,
+            currentOwner,
+            isRegistered,
+            approvedAt,
           };
         })
       );
 
-      const pendingMine = lands.filter(
-        (l) => !l.isRegistered && l.currentOwner.toLowerCase() === wallet.toLowerCase()
+      // 2. Filter by TRUE owner (currentOwner)
+      const my = all.filter(
+        (l) =>
+          l.currentOwner.toLowerCase() === w.toLowerCase()
       );
 
-      setMyPending(pendingMine);
-      setLoadingPending(false);
-      return;
+      const myPending = my.filter((l) => !l.isRegistered);
+      const myRegistered = my.filter((l) => l.isRegistered);
+
+      setPending(myPending);
+      setRegistered(myRegistered);
     } catch (err) {
-      console.log("On-chain pending fetch failed, using mock:", err);
-
-      // -----------------------------
-      // MOCK FALLBACK
-      // -----------------------------
-      try {
-        const nationalId = getMockUserNationalId();
-        const stored = JSON.parse(localStorage.getItem("landRequests")) || [];
-
-        const pendingMine = stored.filter((r) => {
-          const isPending = r.status === "Pending";
-          if (!nationalId) return isPending;
-          return isPending && String(r.nationalId) === String(nationalId);
-        });
-
-        setMyPending(pendingMine);
-      } catch (mockErr) {
-        console.error("Mock pending fetch failed:", mockErr);
-      }
-
-      setLoadingPending(false);
+      console.error("Failed to load owner lands:", err);
+      alert(
+        "Could not load your lands from the blockchain. Check console for details."
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
-  // -----------------------------
-  // ON-CHAIN FIRST: My registered lands
-  // -----------------------------
-  async function loadMyRegisteredLands() {
-    setLoadingLands(true);
-    try {
-      const wallet = await getCurrentWallet();
-      const contract = await getContractReadOnly();
-      if (!wallet || !contract) throw new Error("No wallet/provider");
-
-      const ids = await contract.getLandsByOwner(wallet);
-
-      const lands = await Promise.all(
-        ids.map(async (idBN) => {
-          const id = idBN.toNumber();
-          const land = await contract.landRecords(id);
-
-          return {
-            landId: land.landId.toNumber(),
-            ownerName: land.ownerName,
-            nationalId: land.nationalId,
-            titleNumber: land.titleNumber,
-            location: land.location,
-            size: land.size,
-            landType: land.landType,
-            currentOwner: land.currentOwner,
-            approvedAt: land.approvedAt.toNumber(),
-          };
-        })
-      );
-
-      setMyLands(lands);
-      setLoadingLands(false);
-      return;
-    } catch (err) {
-      console.log("On-chain lands fetch failed, using mock:", err);
-
-      // -----------------------------
-      // MOCK FALLBACK
-      // -----------------------------
-      try {
-        const nationalId = getMockUserNationalId();
-        const stored = JSON.parse(localStorage.getItem("registeredLands")) || [];
-
-        const mine = stored.filter((l) => {
-          if (!nationalId) return true;
-          return String(l.nationalId) === String(nationalId);
-        });
-
-        setMyLands(mine);
-      } catch (mockErr) {
-        console.error("Mock lands fetch failed:", mockErr);
-      }
-
-      setLoadingLands(false);
-    }
+  function formatDate(sec) {
+    if (!sec) return "-";
+    return new Date(sec * 1000).toLocaleString();
   }
 
   return (
     <div className="p-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-        <h1 className="text-2xl font-semibold">Landowner Dashboard</h1>
+      <h1 className="text-2xl font-semibold mb-4">Landowner Dashboard</h1>
 
-        <button
-          onClick={() => {
-            loadMyPendingRequests();
-            loadMyRegisteredLands();
-          }}
-          className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
-        >
-          Refresh
-        </button>
-      </div>
+      {wallet && (
+        <p className="text-xs text-gray-600 mb-4">
+          Connected wallet: <span className="font-mono">{wallet}</span>
+        </p>
+      )}
 
-      {/* Summary cards */}
+      <button
+        onClick={loadMyLands}
+        className="mb-4 bg-green-700 text-white px-3 py-2 rounded-lg hover:bg-green-800"
+      >
+        Refresh
+      </button>
+
+      {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow p-4">
           <p className="text-sm text-gray-500">My Pending Requests</p>
-          <p className="text-2xl font-bold">{myPending.length}</p>
+          <p className="text-2xl font-bold">{pending.length}</p>
         </div>
         <div className="bg-white rounded-xl shadow p-4">
           <p className="text-sm text-gray-500">My Registered Lands</p>
-          <p className="text-2xl font-bold">{myLands.length}</p>
+          <p className="text-2xl font-bold">{registered.length}</p>
         </div>
       </div>
 
-      {/* Pending requests section */}
-      <div className="bg-white rounded-xl shadow p-4 mb-8">
-        <h2 className="text-lg font-semibold mb-3">My Pending Requests</h2>
+      {loading ? (
+        <p>Loading from blockchain...</p>
+      ) : (
+        <>
+          {/* Pending */}
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-2">My Pending Requests</h2>
+            {pending.length === 0 ? (
+              <p className="text-gray-600">You have no pending requests.</p>
+            ) : (
+              <div className="overflow-x-auto bg-white rounded-xl shadow">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="py-2 px-2">Land ID</th>
+                      <th className="px-2">Owner Name</th>
+                      <th className="px-2">Title #</th>
+                      <th className="px-2">Location</th>
+                      <th className="px-2">Size</th>
+                      <th className="px-2">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pending.map((r) => (
+                      <tr key={r.landId} className="border-b last:border-b-0">
+                        <td className="py-2 px-2">{r.landId}</td>
+                        <td className="px-2">{r.displayOwnerName}</td>
+                        <td className="px-2">{r.titleNumber}</td>
+                        <td className="px-2">{r.location}</td>
+                        <td className="px-2">{r.size}</td>
+                        <td className="px-2">{r.landType}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
-        {loadingPending ? (
-          <p className="text-gray-600">Loading pending requests...</p>
-        ) : myPending.length === 0 ? (
-          <p className="text-gray-600">You have no pending requests.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2">Land ID</th>
-                  <th>Title #</th>
-                  <th>Location</th>
-                  <th>Size</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {myPending.map((r, idx) => (
-                  <tr key={idx} className="border-b last:border-b-0">
-                    <td className="py-2">{r.landId}</td>
-                    <td>{r.titleNumber}</td>
-                    <td>{r.location}</td>
-                    <td>{r.size}</td>
-                    <td>{r.landType}</td>
-                    <td className="text-orange-700 font-medium">Pending</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Registered lands section */}
-      <div className="bg-white rounded-xl shadow p-4">
-        <h2 className="text-lg font-semibold mb-3">My Registered Lands</h2>
-
-        {loadingLands ? (
-          <p className="text-gray-600">Loading registered lands...</p>
-        ) : myLands.length === 0 ? (
-          <p className="text-gray-600">You have no registered lands yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left border-b">
-                  <th className="py-2">Land ID</th>
-                  <th>Owner Name</th>
-                  <th>National ID</th>
-                  <th>Title #</th>
-                  <th>Location</th>
-                  <th>Size</th>
-                  <th>Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {myLands.map((l, idx) => (
-                  <tr key={idx} className="border-b last:border-b-0">
-                    <td className="py-2">{l.landId}</td>
-                    <td>{l.ownerName}</td>
-                    <td>{l.nationalId}</td>
-                    <td>{l.titleNumber}</td>
-                    <td>{l.location}</td>
-                    <td>{l.size}</td>
-                    <td>{l.landType}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+          {/* Registered */}
+          <section>
+            <h2 className="text-xl font-semibold mb-2">My Registered Lands</h2>
+            {registered.length === 0 ? (
+              <p className="text-gray-600">
+                You have no registered lands under your wallet.
+              </p>
+            ) : (
+              <div className="overflow-x-auto bg-white rounded-xl shadow">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="py-2 px-2">Land ID</th>
+                      <th className="px-2">Owner Name</th>
+                      <th className="px-2">Title #</th>
+                      <th className="px-2">Location</th>
+                      <th className="px-2">Size</th>
+                      <th className="px-2">Type</th>
+                      <th className="px-2">Approved At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registered.map((r) => (
+                      <tr key={r.landId} className="border-b last:border-b-0">
+                        <td className="py-2 px-2">{r.landId}</td>
+                        <td className="px-2">{r.displayOwnerName}</td>
+                        <td className="px-2">{r.titleNumber}</td>
+                        <td className="px-2">{r.location}</td>
+                        <td className="px-2">{r.size}</td>
+                        <td className="px-2">{r.landType}</td>
+                        <td className="px-2">{formatDate(r.approvedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 };
