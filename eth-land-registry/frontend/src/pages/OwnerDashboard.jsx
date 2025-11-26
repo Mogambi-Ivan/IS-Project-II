@@ -9,6 +9,7 @@ const OwnerDashboard = () => {
   const [wallet, setWallet] = useState(null);
   const [pending, setPending] = useState([]);
   const [registered, setRegistered] = useState([]);
+  const [rejected, setRejected] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -24,6 +25,7 @@ const OwnerDashboard = () => {
       if (!w || !contract) throw new Error("No wallet / provider");
 
       setWallet(w);
+      const lower = w.toLowerCase();
 
       // 1. Get ALL land IDs ever requested
       const ids = await contract.getRequestedLandIds();
@@ -33,21 +35,20 @@ const OwnerDashboard = () => {
           const id = idBN.toNumber();
 
           const land = await contract.landRecords(id);
-          const tr = await contract.transferRequests(id); // may be empty struct
 
           const landId = land.landId.toNumber();
           const isRegistered = land.isRegistered;
           const approvedAt = land.approvedAt.toNumber();
           const currentOwner = land.currentOwner;
+          const isRejected = land.isRejected;
+          const rejectionReason = land.rejectionReason;
 
-          const hasApprovedTransfer = tr.approved;
-          const displayOwnerName = hasApprovedTransfer
-            ? tr.proposedNewOwnerName
-            : land.ownerName;
+          // Now that the contract updates ownerName on approved transfers,
+          // we can trust land.ownerName as the current owner name.
+          const displayOwnerName = land.ownerName;
 
           return {
             landId,
-            originalOwnerName: land.ownerName,
             displayOwnerName,
             nationalId: land.nationalId,
             titleNumber: land.titleNumber,
@@ -57,21 +58,26 @@ const OwnerDashboard = () => {
             currentOwner,
             isRegistered,
             approvedAt,
+            isRejected,
+            rejectionReason,
           };
         })
       );
 
       // 2. Filter by TRUE owner (currentOwner)
       const my = all.filter(
-        (l) =>
-          l.currentOwner.toLowerCase() === w.toLowerCase()
+        (l) => l.currentOwner.toLowerCase() === lower
       );
 
-      const myPending = my.filter((l) => !l.isRegistered);
+      const myPending = my.filter(
+        (l) => !l.isRegistered && !l.isRejected
+      );
       const myRegistered = my.filter((l) => l.isRegistered);
+      const myRejected = my.filter((l) => l.isRejected);
 
       setPending(myPending);
       setRegistered(myRegistered);
+      setRejected(myRejected);
     } catch (err) {
       console.error("Failed to load owner lands:", err);
       alert(
@@ -105,7 +111,7 @@ const OwnerDashboard = () => {
       </button>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow p-4">
           <p className="text-sm text-gray-500">My Pending Requests</p>
           <p className="text-2xl font-bold">{pending.length}</p>
@@ -113,6 +119,10 @@ const OwnerDashboard = () => {
         <div className="bg-white rounded-xl shadow p-4">
           <p className="text-sm text-gray-500">My Registered Lands</p>
           <p className="text-2xl font-bold">{registered.length}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-4">
+          <p className="text-sm text-gray-500">My Rejected Requests</p>
+          <p className="text-2xl font-bold">{rejected.length}</p>
         </div>
       </div>
 
@@ -122,7 +132,9 @@ const OwnerDashboard = () => {
         <>
           {/* Pending */}
           <section className="mb-8">
-            <h2 className="text-xl font-semibold mb-2">My Pending Requests</h2>
+            <h2 className="text-xl font-semibold mb-2">
+              My Pending Requests
+            </h2>
             {pending.length === 0 ? (
               <p className="text-gray-600">You have no pending requests.</p>
             ) : (
@@ -156,8 +168,10 @@ const OwnerDashboard = () => {
           </section>
 
           {/* Registered */}
-          <section>
-            <h2 className="text-xl font-semibold mb-2">My Registered Lands</h2>
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-2">
+              My Registered Lands
+            </h2>
             {registered.length === 0 ? (
               <p className="text-gray-600">
                 You have no registered lands under your wallet.
@@ -186,6 +200,43 @@ const OwnerDashboard = () => {
                         <td className="px-2">{r.size}</td>
                         <td className="px-2">{r.landType}</td>
                         <td className="px-2">{formatDate(r.approvedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* Rejected */}
+          <section>
+            <h2 className="text-xl font-semibold mb-2">
+              My Rejected Requests
+            </h2>
+            {rejected.length === 0 ? (
+              <p className="text-gray-600">
+                You have no rejected requests at the moment.
+              </p>
+            ) : (
+              <div className="overflow-x-auto bg-white rounded-xl shadow">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left border-b">
+                      <th className="py-2 px-2">Land ID</th>
+                      <th className="px-2">Title #</th>
+                      <th className="px-2">Location</th>
+                      <th className="px-2">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rejected.map((r) => (
+                      <tr key={r.landId} className="border-b last:border-b-0">
+                        <td className="py-2 px-2">{r.landId}</td>
+                        <td className="px-2">{r.titleNumber}</td>
+                        <td className="px-2">{r.location}</td>
+                        <td className="px-2">
+                          {r.rejectionReason || "No reason provided"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

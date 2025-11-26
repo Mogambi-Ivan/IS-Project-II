@@ -108,7 +108,7 @@ contract LandRegistry {
     // =========================
     // LAND REGISTRATION
     // =========================
-    struct Land {
+       struct Land {
         uint256 landId;
         string ownerName;
         string nationalId;
@@ -119,7 +119,10 @@ contract LandRegistry {
         address currentOwner;
         bool isRegistered;
         uint256 approvedAt;
+        bool isRejected;          
+        string rejectionReason;   
     }
+
 
     // All lands by id
     mapping(uint256 => Land) public landRecords;
@@ -132,8 +135,10 @@ contract LandRegistry {
 
     event LandRequested(uint256 landId, address owner);
     event LandApproved(uint256 landId, address owner);
+    event LandRejected(uint256 landId, string reason); // NEW
 
-    function requestLandRegistration(
+
+       function requestLandRegistration(
         uint256 _landId,
         string memory _ownerName,
         string memory _nationalId,
@@ -157,7 +162,9 @@ contract LandRegistry {
             landType: _landType,
             currentOwner: msg.sender,
             isRegistered: false,
-            approvedAt: 0
+            approvedAt: 0,
+            isRejected: false,          
+            rejectionReason: ""         
         });
 
         requestedLandIds.push(_landId);
@@ -165,12 +172,14 @@ contract LandRegistry {
         emit LandRequested(_landId, msg.sender);
     }
 
+
     function approveLand(
         uint256 _landId
     ) public onlyGovernment onlyRegisteredGovernment {
         Land storage land = landRecords[_landId];
         require(land.currentOwner != address(0), "Land not requested");
         require(!land.isRegistered, "Already registered");
+        require(!land.isRejected, "Already rejected"); // ✅
 
         land.isRegistered = true;
         land.approvedAt = block.timestamp;
@@ -179,6 +188,24 @@ contract LandRegistry {
 
         emit LandApproved(_landId, land.currentOwner);
     }
+
+        function rejectLand(
+        uint256 _landId,
+        string memory _reason
+    ) public onlyGovernment onlyRegisteredGovernment {
+        Land storage land = landRecords[_landId];
+
+        require(land.currentOwner != address(0), "Land not requested");
+        require(!land.isRegistered, "Already registered");
+        require(!land.isRejected, "Already rejected");
+
+        land.isRejected = true;
+        land.rejectionReason = _reason;
+
+        emit LandRejected(_landId, _reason);
+    }
+
+
 
     function getRequestedLandIds() public view returns (uint256[] memory) {
         return requestedLandIds;
@@ -213,6 +240,7 @@ contract LandRegistry {
     );
     event TransferApproved(uint256 landId, address newOwner);
     event TransferRejected(uint256 landId);
+    
 
         function requestTransfer(
         uint256 _landId,
