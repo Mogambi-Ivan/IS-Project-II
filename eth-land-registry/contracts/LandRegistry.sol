@@ -2,6 +2,38 @@
 pragma solidity ^0.8.20;
 
 contract LandRegistry {
+    // =========================
+    // USER REGISTRY
+    // =========================
+    enum Role {
+        None,
+        Owner,
+        Government
+    }
+
+    struct User {
+        string name;
+        string nationalId;
+        Role role;
+        bool exists;
+    }
+
+    // wallet => user profile
+    mapping(address => User) public users;
+
+    // hashed national ID => wallet (to avoid duplicate IDs)
+    mapping(bytes32 => address) public walletByNationalIdHash;
+
+    event UserRegistered(
+        address indexed wallet,
+        string name,
+        string nationalId,
+        Role role
+    );
+
+    // =========================
+    // ADMIN / GOVERNMENT
+    // =========================
     address public governmentOfficial;
     address public admin;
 
@@ -16,8 +48,61 @@ contract LandRegistry {
     }
 
     modifier onlyGovernment() {
-        require(msg.sender == governmentOfficial, "Only government official allowed");
+        require(
+            msg.sender == governmentOfficial,
+            "Only government official allowed"
+        );
         _;
+    }
+
+    modifier onlyRegisteredOwner() {
+        require(users[msg.sender].exists, "User not registered");
+        require(
+            users[msg.sender].role == Role.Owner,
+            "Registered user is not an owner"
+        );
+        _;
+    }
+
+    modifier onlyRegisteredGovernment() {
+        require(users[msg.sender].exists, "User not registered");
+        require(
+            users[msg.sender].role == Role.Government,
+            "Registered user is not government"
+        );
+        _;
+    }
+
+    // =========================
+    // USER FUNCTIONS
+    // =========================
+    function registerUser(
+        string memory _name,
+        string memory _nationalId,
+        Role _role
+    ) public {
+        require(!users[msg.sender].exists, "Already registered");
+        require(
+            _role == Role.Owner || _role == Role.Government,
+            "Invalid role"
+        );
+
+        bytes32 idHash = keccak256(abi.encodePacked(_nationalId));
+        require(
+            walletByNationalIdHash[idHash] == address(0),
+            "National ID already used"
+        );
+
+        users[msg.sender] = User({
+            name: _name,
+            nationalId: _nationalId,
+            role: _role,
+            exists: true
+        });
+
+        walletByNationalIdHash[idHash] = msg.sender;
+
+        emit UserRegistered(msg.sender, _name, _nationalId, _role);
     }
 
     // =========================
@@ -42,7 +127,7 @@ contract LandRegistry {
     // Track all registration requests
     uint256[] public requestedLandIds;
 
-    // Owner => list of their landIds
+    // Owner => list of their landIds (historical list)
     mapping(address => uint256[]) public landsByOwner;
 
     event LandRequested(uint256 landId, address owner);
@@ -56,8 +141,11 @@ contract LandRegistry {
         string memory _location,
         string memory _size,
         string memory _landType
-    ) public {
-        require(landRecords[_landId].currentOwner == address(0), "Land ID already exists");
+    ) public onlyRegisteredOwner {
+        require(
+            landRecords[_landId].currentOwner == address(0),
+            "Land ID already exists"
+        );
 
         landRecords[_landId] = Land({
             landId: _landId,
@@ -77,7 +165,9 @@ contract LandRegistry {
         emit LandRequested(_landId, msg.sender);
     }
 
-    function approveLand(uint256 _landId) public onlyGovernment {
+    function approveLand(
+        uint256 _landId
+    ) public onlyGovernment onlyRegisteredGovernment {
         Land storage land = landRecords[_landId];
         require(land.currentOwner != address(0), "Land not requested");
         require(!land.isRegistered, "Already registered");
@@ -94,7 +184,9 @@ contract LandRegistry {
         return requestedLandIds;
     }
 
-    function getLandsByOwner(address _owner) public view returns (uint256[] memory) {
+    function getLandsByOwner(
+        address _owner
+    ) public view returns (uint256[] memory) {
         return landsByOwner[_owner];
     }
 
@@ -114,26 +206,35 @@ contract LandRegistry {
     mapping(uint256 => TransferRequest) public transferRequests;
     uint256[] public pendingTransferIds;
 
-    event TransferRequested(uint256 landId, address fromOwner, address toOwner);
+    event TransferRequested(
+        uint256 landId,
+        address fromOwner,
+        address toOwner
+    );
     event TransferApproved(uint256 landId, address newOwner);
     event TransferRejected(uint256 landId);
 
-    function requestTransfer(
+        function requestTransfer(
         uint256 _landId,
-        address _newOwner,
-        string memory _newOwnerName
-    ) public {
+        string memory _newOwnerNationalId
+    ) public onlyRegisteredOwner {
         Land storage land = landRecords[_landId];
 
         require(land.isRegistered, "Land not registered");
         require(land.currentOwner == msg.sender, "Not current owner");
-        require(_newOwner != address(0), "Invalid new owner");
+
+        // Look up new owner wallet from national ID
+        bytes32 idHash = keccak256(abi.encodePacked(_newOwnerNationalId));
+        address newOwner = walletByNationalIdHash[idHash];
+        require(newOwner != address(0), "New owner not registered");
+
+        User storage u = users[newOwner];
 
         transferRequests[_landId] = TransferRequest({
             landId: _landId,
             fromOwner: msg.sender,
-            toOwner: _newOwner,
-            proposedNewOwnerName: _newOwnerName,
+            toOwner: newOwner,
+            proposedNewOwnerName: u.name, // official on-chain name
             approved: false,
             rejected: false,
             decidedAt: 0
@@ -141,27 +242,44 @@ contract LandRegistry {
 
         pendingTransferIds.push(_landId);
 
-        emit TransferRequested(_landId, msg.sender, _newOwner);
+        emit TransferRequested(_landId, msg.sender, newOwner);
     }
 
-    function approveTransfer(uint256 _landId) public onlyGovernment {
-        TransferRequest storage req = transferRequests[_landId];
-        Land storage land = landRecords[_landId];
 
-        require(req.fromOwner != address(0), "No transfer request");
-        require(!req.approved && !req.rejected, "Already decided");
+    function approveTransfer(
+    uint256 _landId
+) public onlyGovernment onlyRegisteredGovernment {
+    TransferRequest storage req = transferRequests[_landId];
+    Land storage land = landRecords[_landId];
 
-        land.currentOwner = req.toOwner;
+    require(req.fromOwner != address(0), "No transfer request");
+    require(!req.approved && !req.rejected, "Already decided");
 
-        req.approved = true;
-        req.decidedAt = block.timestamp;
+    // ✅ 1. Update the blockchain record to the NEW owner
+    land.currentOwner = req.toOwner;
 
-        landsByOwner[req.toOwner].push(_landId);
-
-        emit TransferApproved(_landId, req.toOwner);
+    // ✅ 2. Also update the details to match the new owner
+    User storage newOwner = users[req.toOwner];
+    if (newOwner.exists) {
+        land.ownerName = newOwner.name;
+        land.nationalId = newOwner.nationalId;
     }
 
-    function rejectTransfer(uint256 _landId) public onlyGovernment {
+    // ✅ 3. Mark transfer as approved
+    req.approved = true;
+    req.decidedAt = block.timestamp;
+
+    // (Optional: we could remove from fromOwner's list, but for now
+    //  we just append to the new owner's history.)
+    landsByOwner[req.toOwner].push(_landId);
+
+    emit TransferApproved(_landId, req.toOwner);
+}
+
+
+    function rejectTransfer(
+        uint256 _landId
+    ) public onlyGovernment onlyRegisteredGovernment {
         TransferRequest storage req = transferRequests[_landId];
 
         require(req.fromOwner != address(0), "No transfer request");

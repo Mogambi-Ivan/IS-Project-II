@@ -11,7 +11,7 @@ const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
 const signer = provider.getSigner();
 
 // ✅ Use the address printed in your deploy.js
-const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const contractAddress = "0x610178dA211FEF7D417bC0e6FeD39F05609AD788";
 
 // ✅ Initialize contract
 const contract = new ethers.Contract(contractAddress, abi, signer);

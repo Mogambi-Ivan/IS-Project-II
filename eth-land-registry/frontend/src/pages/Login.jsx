@@ -1,44 +1,45 @@
 // frontend/src/pages/Login.jsx
 import React, { useState } from "react";
 import { useUser } from "../context/UserContext";
-import { getCurrentWallet } from "../utils/ethereum";
-
-const PROFILE_KEY = "landRegistryProfiles";
-
-function loadProfiles() {
-  try {
-    const raw = localStorage.getItem(PROFILE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveProfiles(profiles) {
-  try {
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
-  } catch (err) {
-    console.error("Failed to store profiles:", err);
-  }
-}
+import {
+  getCurrentWallet,
+  getContractReadOnly,
+  getContractWithSigner,
+} from "../utils/ethereum";
 
 export default function Login() {
   const { login } = useUser();
+
   const [wallet, setWallet] = useState("");
-  const [hasProfile, setHasProfile] = useState(false);
   const [loadingWallet, setLoadingWallet] = useState(false);
+  const [checkingOnChain, setCheckingOnChain] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const [form, setForm] = useState({
     name: "",
     nationalId: "",
-    role: "owner",
+    role: "owner", // "owner" or "government"
   });
+
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function mapOnChainRoleToUi(roleValue) {
+    const n = Number(roleValue);
+    if (n === 2) return "government";
+    if (n === 1) return "owner";
+    return "owner";
+  }
 
   async function handleConnectWallet() {
     setError("");
     setLoadingWallet(true);
+    setShowForm(false);
+
     try {
       const w = await getCurrentWallet();
       if (!w) {
@@ -49,27 +50,37 @@ export default function Login() {
       const lower = w.toLowerCase();
       setWallet(lower);
 
-      const profiles = loadProfiles();
-      const existing = profiles[lower];
+      // Check on-chain whether this wallet is already registered
+      setCheckingOnChain(true);
+      const contract = await getContractReadOnly();
+      if (!contract) {
+        setError("Could not reach the contract. Check network.");
+        return;
+      }
 
-      if (existing) {
-        // Wallet already registered → log them straight in
-        login(existing);
+      const user = await contract.users(lower);
+      // user: [name, nationalId, role, exists]
+
+      if (user.exists) {
+        // Already registered → log them straight in
+        const profile = {
+          wallet: lower,
+          name: user.name,
+          nationalId: user.nationalId,
+          role: mapOnChainRoleToUi(user.role),
+        };
+        login(profile);
       } else {
         // New wallet → show registration form
-        setHasProfile(false);
+        setShowForm(true);
       }
     } catch (err) {
-      console.error("Wallet connect error:", err);
-      setError("Failed to connect wallet. Check MetaMask and try again.");
+      console.error("Wallet connect / user check error:", err);
+      setError("Failed to connect wallet or read on-chain user. Try again.");
     } finally {
       setLoadingWallet(false);
+      setCheckingOnChain(false);
     }
-  }
-
-  function handleChange(e) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   async function handleRegister(e) {
@@ -88,23 +99,38 @@ export default function Login() {
 
     setSaving(true);
     try {
-      const profiles = loadProfiles();
+      const contract = await getContractWithSigner();
+      if (!contract) {
+        setError("Could not reach contract with signer. Check MetaMask.");
+        setSaving(false);
+        return;
+      }
 
+      // Role enum: 0=None, 1=Owner, 2=Government
+      const roleEnum = form.role === "government" ? 2 : 1;
+
+      const tx = await contract.registerUser(
+        form.name.trim(),
+        form.nationalId.trim(),
+        roleEnum
+      );
+      await tx.wait();
+
+      // Read back the on-chain user to be sure
+      const user = await contract.users(wallet);
       const profile = {
         wallet,
-        name: form.name.trim(),
-        nationalId: form.nationalId.trim(),
-        role: form.role, // "owner" or "admin"
+        name: user.name,
+        nationalId: user.nationalId,
+        role: mapOnChainRoleToUi(user.role),
       };
 
-      profiles[wallet] = profile;
-      saveProfiles(profiles);
-
-      // Log into the app
       login(profile);
     } catch (err) {
-      console.error("Failed to save registration:", err);
-      setError("Could not save registration. Please try again.");
+      console.error("On-chain registration failed:", err);
+      setError(
+        "Registration transaction failed. Check console / MetaMask and try again."
+      );
     } finally {
       setSaving(false);
     }
@@ -119,17 +145,19 @@ export default function Login() {
           Kenya Land Registry
         </h1>
         <p className="text-sm text-gray-600 mb-6 text-center">
-          Web3 login with digital ID registration
+          Web3 login with on-chain citizen registration
         </p>
 
-        {/* Step 1: Connect wallet */}
+        {/* Step 1: Connect wallet & check on-chain user */}
         <div className="mb-6">
           <button
             onClick={handleConnectWallet}
-            disabled={loadingWallet}
+            disabled={loadingWallet || checkingOnChain}
             className="w-full bg-green-700 hover:bg-green-800 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-60"
           >
-            {loadingWallet ? "Connecting wallet..." : "1. Connect Wallet"}
+            {loadingWallet || checkingOnChain
+              ? "Connecting & checking user..."
+              : "1. Connect Wallet"}
           </button>
 
           {isWalletConnected && (
@@ -140,8 +168,8 @@ export default function Login() {
           )}
         </div>
 
-        {/* Step 2: Registration form (only if wallet is new) */}
-        {isWalletConnected && !hasProfile && (
+        {/* Step 2: Registration form only for new wallets */}
+        {isWalletConnected && showForm && (
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">
@@ -184,14 +212,14 @@ export default function Login() {
                 className="w-full border rounded-lg p-2 text-sm"
               >
                 <option value="owner">Land Owner</option>
-                <option value="admin">Government Official</option>
+                <option value="government">Government Official</option>
               </select>
             </div>
 
             <p className="text-xs text-gray-500">
-              This registration links your identity details to your wallet
-              address. Land records themselves are stored on the Ethereum smart contract.
-            
+              Your name, ID and role are written to the smart contract and
+              linked to your wallet address. All land records and transfers
+              live on-chain.
             </p>
 
             <button
@@ -199,7 +227,7 @@ export default function Login() {
               disabled={saving}
               className="w-full bg-[#00331f] hover:bg-[#00492a] text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-60"
             >
-              {saving ? "Registering..." : "2. Register & Enter System"}
+              {saving ? "Registering on-chain..." : "2. Register & Enter System"}
             </button>
           </form>
         )}
