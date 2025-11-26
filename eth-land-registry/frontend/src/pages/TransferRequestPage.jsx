@@ -161,8 +161,7 @@ const TransferRequestPage = () => {
                 placeholder="0x..."
               />
               <p className="text-xs text-gray-500 mt-1">
-                For testing on Hardhat, you can use another test account address
-                (e.g. Account #2).
+                Enter Wallet address of the new owner.
               </p>
             </div>
 
